@@ -465,7 +465,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 	c.addToHistory(channelID, threadTS, timestamp, "user", userPrompt, profile.userId, profile.realName, profile.email) // Add user message to history
 
 	// Show a temporary "typing" indicator
-	c.userFrontend.SendMessage(channelID, threadTS, c.cfg.Slack.ThinkingMessage)
+	c.userFrontend.SendMessage(channelID, threadTS, ":loading1: "+c.cfg.Slack.ThinkingMessage)
 
 	if !c.cfg.LLM.UseAgent {
 		// Prepare the final prompt with custom prompt as system instruction
