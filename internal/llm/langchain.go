@@ -195,7 +195,7 @@ You may invoke multiple tools as needed to solve a problem. Use any and all tool
 
 Chain together tools if you need to. Always make sure you follow the tool schema perfectly.
 
-The user you are about to interact with is named "%s".
+The user you are about to interact with is named "%s". When addressing the user, prefer using "you" and "your" instead of repeating their name (for example, say "I will look up your ..." rather than "I will look up %s's ...").
 
 TOOLS:
 ------
@@ -204,7 +204,7 @@ Assistant has access to the following tools:
 
 {{.tool_descriptions}}
 
-`, systemPrompt, userDisplayName)),
+`, systemPrompt, userDisplayName, userDisplayName)),
 		// Based on the default conversational agent prompt format, just added the Justification part
 		agents.WithPromptFormatInstructions(`To use a tool, please use the following format:
 
@@ -216,6 +216,8 @@ Action Input: [the input to the action. This should always be a single line JSON
 
 Only call one tool at a time, send your response, and wait for the result to be provided in the next message.
 IMPORTANT: Return ONLY the tool format with no explanations or formatting when using a tool.
+IMPORTANT: Do NOT write multiple Thought/Justification/Action blocks in a single response. Write ONE block and stop — wait for the tool result before proceeding.
+IMPORTANT: Never write a Justification that says "I need to..." without an Action following it in the same response. Every Justification must be immediately followed by an Action and Action Input.
 
 When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
 

@@ -543,6 +543,19 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 			c.tracingHandler.RecordSuccess(msgSpan, "Agent message sent successfully")
 			msgSpan.End()
 		}
+		sendIntermediateMsg := func(msg string) {
+			_, msgSpan := c.tracingHandler.StartSpan(agentCtx, "agent-intermediate-message-send", "event", msg, map[string]string{
+				"channel_id":     channelID,
+				"thread_ts":      threadTS,
+				"message_type":   "agent_intermediate",
+				"message_length": fmt.Sprintf("%d", len(msg)),
+			})
+
+			c.addToHistory(channelID, threadTS, "", "assistant", msg, "", "", "")
+			c.userFrontend.SendIntermediateMessage(channelID, threadTS, msg)
+			c.tracingHandler.RecordSuccess(msgSpan, "Agent intermediate message sent successfully")
+			msgSpan.End()
+		}
 
 		startTime := time.Now()
 		llmResponse, err := c.llmMCPBridge.CallLLMAgent(
@@ -553,6 +566,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 			&agentCallbackHandler{
 				callbacks.SimpleHandler{},
 				sendMsg,
+				sendIntermediateMsg,
 				c.cfg.LLM.SuppressIntermediateSteps,
 			})
 		duration := time.Since(startTime)
@@ -562,7 +576,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 
 		if err != nil {
 			c.logger.ErrorKV("Error from LLM provider", "provider", c.cfg.LLM.Provider, "error", err)
-			c.userFrontend.SendMessage(channelID, threadTS, fmt.Sprintf("❌ Sorry, I encountered an error with the LLM provider ('%s'): %v", c.cfg.LLM.Provider, err))
+			c.userFrontend.SendMessage(channelID, threadTS, fmt.Sprintf("Sorry, I encountered an error with the LLM provider ('%s'): %v", c.cfg.LLM.Provider, err))
 			c.tracingHandler.RecordError(agentSpan, err, "ERROR")
 			agentSpan.End()
 			return
@@ -574,7 +588,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 
 		// Send the final response back to Slack
 		if llmResponse == "" {
-			c.userFrontend.SendMessage(channelID, threadTS, "❌ (LLM returned an empty response)")
+			c.userFrontend.SendMessage(channelID, threadTS, "(LLM returned an empty response)")
 			c.tracingHandler.RecordError(agentSpan, fmt.Errorf("LLM returned an empty response"), "ERROR")
 
 		} else {

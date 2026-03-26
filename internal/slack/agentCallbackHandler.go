@@ -12,6 +12,7 @@ type sendMessageFunc func(message string)
 type agentCallbackHandler struct {
 	callbacks.SimpleHandler
 	sendMessage               sendMessageFunc
+	sendIntermediateMessage   sendMessageFunc
 	suppressIntermediateSteps bool
 }
 
@@ -83,11 +84,11 @@ func (handler *agentCallbackHandler) HandleChainEnd(_ context.Context, outputs m
 			// Clean intermediate steps to keep Justification but remove Action/ActionInput
 			cleanedText := cleanIntermediateStep(textStr)
 			if cleanedText != "" {
-				handler.sendMessage(cleanedText)
+				handler.sendIntermediateMessage(cleanedText)
 			}
 			return
 		}
-		textStr = "✅ " + extractFinalAnswer(textStr)
+		textStr = extractFinalAnswer(textStr)
 	}
 
 	handler.sendMessage(textStr)
