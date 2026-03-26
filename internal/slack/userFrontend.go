@@ -24,6 +24,7 @@ type UserFrontend interface {
 	IsValidUser(userID string) bool
 	GetLogger() *logging.Logger
 	SendMessage(channelID, threadTS, text string)
+	SendIntermediateMessage(channelID, threadTS, text string)
 	GetThreadReplies(channelID, threadTS string) ([]slack.Message, error)
 	GetUserInfo(userID string) (*UserProfile, error)
 }
@@ -167,8 +168,20 @@ func (slackClient *SlackClient) GetUserInfo(userID string) (*UserProfile, error)
 	return profile, nil
 }
 
+// SendIntermediateMessage sends an intermediate agent message to Slack without removing the thinking indicator.
+func (slackClient *SlackClient) SendIntermediateMessage(channelID, threadTS, text string) {
+	slackClient.sendMessageInternal(channelID, threadTS, text, false)
+}
+
 // SendMessage sends a message back to Slack, replying in a thread if threadTS is provided.
+// It removes the thinking indicator before sending.
 func (slackClient *SlackClient) SendMessage(channelID, threadTS, text string) {
+	slackClient.sendMessageInternal(channelID, threadTS, text, true)
+}
+
+// sendMessageInternal is the shared implementation. When removeThinking is true, the
+// thinking indicator is deleted before posting the message.
+func (slackClient *SlackClient) sendMessageInternal(channelID, threadTS, text string, removeThinking bool) {
 	if text == "" {
 		slackClient.logger.WarnKV("Attempted to send empty message, skipping", "channel", channelID)
 		return
@@ -177,10 +190,12 @@ func (slackClient *SlackClient) SendMessage(channelID, threadTS, text string) {
 	threadKey := channelID + ":" + threadTS
 
 	// Efficiently delete the thinking indicator using its stored timestamp (no API scan needed)
-	if ts, loaded := slackClient.thinkingMsgTS.LoadAndDelete(threadKey); loaded {
-		_, _, err := slackClient.DeleteMessage(channelID, ts.(string))
-		if err != nil {
-			slackClient.logger.ErrorKV("Error deleting typing indicator message", "error", err)
+	if removeThinking {
+		if ts, loaded := slackClient.thinkingMsgTS.LoadAndDelete(threadKey); loaded {
+			_, _, err := slackClient.DeleteMessage(channelID, ts.(string))
+			if err != nil {
+				slackClient.logger.ErrorKV("Error deleting typing indicator message", "error", err)
+			}
 		}
 	}
 
