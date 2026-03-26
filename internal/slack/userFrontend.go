@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/socketmode"
@@ -100,6 +101,8 @@ type SlackClient struct {
 	logger          *logging.Logger
 	thinkingMessage string
 	userCache       map[string]*UserProfile
+	userCacheMu     sync.RWMutex // protects userCache
+	thinkingMsgTS   sync.Map     // key: channelID:threadTS -> thinking message timestamp
 }
 
 func (slackClient *SlackClient) GetEventChannel() chan socketmode.Event {
@@ -140,9 +143,13 @@ func (slackClient *SlackClient) GetUserInfo(userID string) (*UserProfile, error)
 	if userID == "" {
 		return nil, fmt.Errorf("userID must be provided")
 	}
+	slackClient.userCacheMu.RLock()
 	if profile, ok := slackClient.userCache[userID]; ok {
+		slackClient.userCacheMu.RUnlock()
 		return profile, nil
 	}
+	slackClient.userCacheMu.RUnlock()
+
 	slackProfile, err := slackClient.GetUserProfile(&slack.GetUserProfileParameters{
 		UserID: userID,
 	})
@@ -154,7 +161,9 @@ func (slackClient *SlackClient) GetUserInfo(userID string) (*UserProfile, error)
 		realName: slackProfile.RealName,
 		email:    slackProfile.Email,
 	}
+	slackClient.userCacheMu.Lock()
 	slackClient.userCache[userID] = profile
+	slackClient.userCacheMu.Unlock()
 	return profile, nil
 }
 
@@ -165,18 +174,13 @@ func (slackClient *SlackClient) SendMessage(channelID, threadTS, text string) {
 		return
 	}
 
-	// Delete "typing" indicator messages if any
-	// This is a simplistic approach - more sophisticated approaches might track message IDs
-	history, err := slackClient.GetThreadReplies(channelID, threadTS)
-	if err == nil && history != nil {
-		for _, msg := range history {
-			if slackClient.IsBotUser(msg.User) && msg.Text == slackClient.thinkingMessage {
-				_, _, err := slackClient.DeleteMessage(channelID, msg.Timestamp)
-				if err != nil {
-					slackClient.logger.ErrorKV("Error deleting typing indicator message", "error", err)
-				}
-				break // Just delete the most recent one
-			}
+	threadKey := channelID + ":" + threadTS
+
+	// Efficiently delete the thinking indicator using its stored timestamp (no API scan needed)
+	if ts, loaded := slackClient.thinkingMsgTS.LoadAndDelete(threadKey); loaded {
+		_, _, err := slackClient.DeleteMessage(channelID, ts.(string))
+		if err != nil {
+			slackClient.logger.ErrorKV("Error deleting typing indicator message", "error", err)
 		}
 	}
 
@@ -211,7 +215,7 @@ func (slackClient *SlackClient) SendMessage(channelID, threadTS, text string) {
 	}
 
 	// Send the message
-	_, _, err = slackClient.PostMessage(channelID, msgOptions...)
+	_, msgTS, err := slackClient.PostMessage(channelID, msgOptions...)
 	if err != nil {
 		slackClient.logger.ErrorKV("Error posting message to channel", "channel", channelID, "error", err, "messageType", messageType)
 
@@ -229,10 +233,18 @@ func (slackClient *SlackClient) SendMessage(channelID, threadTS, text string) {
 			}
 
 			// Try sending with plain text format
-			_, _, fallbackErr := slackClient.PostMessage(channelID, fallbackOptions...)
+			_, msgTS, fallbackErr := slackClient.PostMessage(channelID, fallbackOptions...)
 			if fallbackErr != nil {
 				slackClient.logger.ErrorKV("Error posting fallback message to channel", "channel", channelID, "error", fallbackErr)
+			} else if text == slackClient.thinkingMessage {
+				slackClient.thinkingMsgTS.Store(threadKey, msgTS)
 			}
 		}
+		return
+	}
+
+	// Track the thinking indicator's timestamp for efficient deletion on next send
+	if text == slackClient.thinkingMessage {
+		slackClient.thinkingMsgTS.Store(threadKey, msgTS)
 	}
 }

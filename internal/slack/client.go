@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/slack-go/slack/slackevents"
@@ -34,6 +35,7 @@ type Client struct {
 	llmRegistry     *llm.ProviderRegistry // LLM provider registry
 	cfg             *config.Config        // Holds the application configuration
 	messageHistory  map[string][]Message
+	historyMu       sync.RWMutex // protects messageHistory
 	historyLimit    int
 	discoveredTools map[string]mcp.ToolInfo
 	tracingHandler  observability.TracingHandler
@@ -303,6 +305,10 @@ func historyKey(channelID, threadTS string) string {
 // addToHistory adds a message to the channel history
 func (c *Client) addToHistory(channelID, threadTS, timestamp, role, content, userID, realName, email string) {
 	key := historyKey(channelID, threadTS)
+
+	c.historyMu.Lock()
+	defer c.historyMu.Unlock()
+
 	history, exists := c.messageHistory[key]
 	if !exists {
 		history = []Message{}
@@ -332,8 +338,16 @@ func (c *Client) addToHistory(channelID, threadTS, timestamp, role, content, use
 //
 //nolint:unused // Reserved for future use
 func (c *Client) getContextFromHistory(channelID string, threadTS string) string {
-	history, exists := c.messageHistory[historyKey(channelID, threadTS)]
-	if !exists || len(history) == 0 {
+	c.historyMu.RLock()
+	raw, exists := c.messageHistory[historyKey(channelID, threadTS)]
+	var history []Message
+	if exists {
+		history = make([]Message, len(raw))
+		copy(history, raw)
+	}
+	c.historyMu.RUnlock()
+
+	if len(history) == 0 {
 		return ""
 	}
 
@@ -420,12 +434,13 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 		c.logger.ErrorKV("Failed to fetch thread replies", "channel", channelID, "thread_ts", threadTS, "error", err)
 	} else {
 		c.logger.DebugKV("Fetched thread replies", "channel", channelID, "thread_ts", threadTS, "count", len(replies))
+		c.historyMu.RLock()
 		existingMessages := make(map[string]bool)
 		history := c.messageHistory[historyKey(channelID, threadTS)]
 		for _, msg := range history {
-			// key := fmt.Sprintf("%s:%s", msg.UserID, msg.Content)
 			existingMessages[msg.SlackTimestamp] = true
 		}
+		c.historyMu.RUnlock()
 		for _, reply := range replies {
 			// replyKey := fmt.Sprintf("%s:%s", reply.User, reply.Text)
 			if !existingMessages[reply.Timestamp] {
@@ -538,6 +553,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 			&agentCallbackHandler{
 				callbacks.SimpleHandler{},
 				sendMsg,
+				c.cfg.LLM.SuppressIntermediateSteps,
 			})
 		duration := time.Since(startTime)
 
@@ -546,7 +562,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 
 		if err != nil {
 			c.logger.ErrorKV("Error from LLM provider", "provider", c.cfg.LLM.Provider, "error", err)
-			c.userFrontend.SendMessage(channelID, threadTS, fmt.Sprintf("Sorry, I encountered an error with the LLM provider ('%s'): %v", c.cfg.LLM.Provider, err))
+			c.userFrontend.SendMessage(channelID, threadTS, fmt.Sprintf("❌ Sorry, I encountered an error with the LLM provider ('%s'): %v", c.cfg.LLM.Provider, err))
 			c.tracingHandler.RecordError(agentSpan, err, "ERROR")
 			agentSpan.End()
 			return
@@ -558,7 +574,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 
 		// Send the final response back to Slack
 		if llmResponse == "" {
-			c.userFrontend.SendMessage(channelID, threadTS, "(LLM returned an empty response)")
+			c.userFrontend.SendMessage(channelID, threadTS, "❌ (LLM returned an empty response)")
 			c.tracingHandler.RecordError(agentSpan, fmt.Errorf("LLM returned an empty response"), "ERROR")
 
 		} else {

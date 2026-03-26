@@ -21,7 +21,7 @@
           "pattern": "^(xoxb-|\\$\\{[A-Z_]+\\}).*"
         },
         "appToken": {
-          "type": "string", 
+          "type": "string",
           "description": "Slack app token (xapp-*) or environment variable reference (${SLACK_APP_TOKEN})",
           "pattern": "^(xapp-|\\$\\{[A-Z_]+\\}).*"
         }
@@ -59,6 +59,11 @@
           "type": "boolean",
           "default": false,
           "description": "Replace default tool prompt entirely instead of prepending"
+        },
+        "suppressIntermediateSteps": {
+          "type": "boolean",
+          "default": false,
+          "description": "When agent mode is enabled, suppress intermediate Thought/Action/Observation messages in Slack and only post the final response"
         },
         "providers": {
           "type": "object",
@@ -237,10 +242,7 @@
           "$ref": "#/$defs/mcp_tools"
         }
       },
-      "oneOf": [
-        {"required": ["command"]},
-        {"required": ["url"]}
-      ],
+      "oneOf": [{ "required": ["command"] }, { "required": ["url"] }],
       "additionalProperties": false
     },
     "mcp_tools": {
@@ -254,7 +256,7 @@
           "description": "Only allow these tools (if specified, blocks all others)"
         },
         "blockList": {
-          "type": "array", 
+          "type": "array",
           "items": {
             "type": "string"
           },
@@ -292,4 +294,4 @@
       "additionalProperties": false
     }
   }
-} 
+}
