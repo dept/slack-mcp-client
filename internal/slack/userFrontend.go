@@ -84,7 +84,7 @@ func GetSlackClient(botToken, appToken string, stdLogger *logging.Logger, thinki
 		botMentionRgx:   mentionRegex,
 		botUserID:       authTest.UserID,
 		logger:          slackLogger,
-		thinkingMessage: ":loading1: " + thinkingMessage,
+		thinkingMessage: thinkingMessage,
 		userCache:       make(map[string]*UserProfile),
 	}, nil
 }
