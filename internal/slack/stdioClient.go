@@ -118,3 +118,17 @@ func (client StdioClient) SendMessage(channelID, threadTS, text string) {
 		}
 	}
 }
+
+func (client StdioClient) SendIntermediateMessage(channelID, threadTS, text string) {
+	messages := []string{
+		"----- INTERMEDIATE MESSAGE -----\n",
+		text, "\n",
+		"----- END INTERMEDIATE MESSAGE -----\n",
+	}
+	for _, msg := range messages {
+		_, err := client.Output.Write([]byte(msg))
+		if err != nil {
+			client.logger.ErrorKV("While writing intermediate message to output", "error", err)
+		}
+	}
+}
