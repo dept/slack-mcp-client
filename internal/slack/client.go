@@ -39,7 +39,11 @@ type Client struct {
 	historyLimit    int
 	discoveredTools map[string]mcp.ToolInfo
 	tracingHandler  observability.TracingHandler
+	recentEvents    map[string]time.Time
+	recentEventsMu  sync.Mutex
 }
+
+const duplicateEventTTL = 2 * time.Minute
 
 // Message represents a message in the conversation history
 type Message struct {
@@ -203,6 +207,7 @@ func NewClient(userFrontend UserFrontend, stdLogger *logging.Logger, mcpClients 
 		historyLimit:    cfg.Slack.MessageHistory, // Store configured number of messages per channel
 		discoveredTools: discoveredTools,
 		tracingHandler:  tracingHandler,
+		recentEvents:    make(map[string]time.Time),
 	}, nil
 }
 
@@ -249,6 +254,11 @@ func (c *Client) handleEvents() {
 
 // handleEventMessage processes specific EventsAPI messages.
 func (c *Client) handleEventMessage(event slackevents.EventsAPIEvent) {
+	if !c.shouldProcessEvent(event) {
+		c.logger.InfoKV("Skipped duplicate Slack event", "type", event.Type)
+		return
+	}
+
 	switch event.Type {
 	case slackevents.CallbackEvent:
 		innerEvent := event.InnerEvent
@@ -295,6 +305,63 @@ func (c *Client) handleEventMessage(event slackevents.EventsAPIEvent) {
 		}
 	default:
 		c.logger.DebugKV("Unsupported outer event type", "type", event.Type)
+	}
+}
+
+func (c *Client) shouldProcessEvent(event slackevents.EventsAPIEvent) bool {
+	key := buildEventDedupKey(event)
+	if key == "" {
+		return true
+	}
+
+	now := time.Now()
+	c.recentEventsMu.Lock()
+	defer c.recentEventsMu.Unlock()
+
+	for existingKey, seenAt := range c.recentEvents {
+		if now.Sub(seenAt) > duplicateEventTTL {
+			delete(c.recentEvents, existingKey)
+		}
+	}
+
+	if seenAt, exists := c.recentEvents[key]; exists && now.Sub(seenAt) <= duplicateEventTTL {
+		return false
+	}
+
+	c.recentEvents[key] = now
+	return true
+}
+
+func buildEventDedupKey(event slackevents.EventsAPIEvent) string {
+	if cb, ok := event.Data.(*slackevents.EventsAPICallbackEvent); ok && cb.EventID != "" {
+		return "event:" + cb.EventID
+	}
+
+	if event.Type != slackevents.CallbackEvent {
+		return ""
+	}
+
+	switch ev := event.InnerEvent.Data.(type) {
+	case *slackevents.AppMentionEvent:
+		return fmt.Sprintf(
+			"mention:%s:%s:%s:%s:%s",
+			ev.Channel,
+			ev.User,
+			ev.TimeStamp,
+			ev.ThreadTimeStamp,
+			strings.TrimSpace(ev.Text),
+		)
+	case *slackevents.MessageEvent:
+		return fmt.Sprintf(
+			"message:%s:%s:%s:%s:%s",
+			ev.Channel,
+			ev.User,
+			ev.TimeStamp,
+			ev.ThreadTimeStamp,
+			strings.TrimSpace(ev.Text),
+		)
+	default:
+		return ""
 	}
 }
 
