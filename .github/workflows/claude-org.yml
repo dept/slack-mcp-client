@@ -12,15 +12,12 @@ on:
 
 jobs:
   claude:
-    env:
-      # Define authorized users (space-separated for easy contains() check)
-      # The surrounding spaces prevent partial matches (e.g., "admin" won't match "badmin")
-      AUTHORIZED_USERS: ' yekkhan-liftoff wyangsun tommynguyen-vungle '
+    # Authorized users (space-padded so partial matches are avoided, e.g. "admin" won't match "badmin")
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(env.AUTHORIZED_USERS, format(' {0} ', github.event.comment.user.login))) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && contains(env.AUTHORIZED_USERS, format(' {0} ', github.event.comment.user.login))) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(env.AUTHORIZED_USERS, format(' {0} ', github.event.review.user.login))) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(env.AUTHORIZED_USERS, format(' {0} ', github.event.issue.user.login)))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(' yekkhan-liftoff wyangsun tommynguyen-vungle ', format(' {0} ', github.event.comment.user.login))) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && contains(' yekkhan-liftoff wyangsun tommynguyen-vungle ', format(' {0} ', github.event.comment.user.login))) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(' yekkhan-liftoff wyangsun tommynguyen-vungle ', format(' {0} ', github.event.review.user.login))) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(' yekkhan-liftoff wyangsun tommynguyen-vungle ', format(' {0} ', github.event.issue.user.login)))
     runs-on: ubuntu-latest
     permissions:
       contents: read
