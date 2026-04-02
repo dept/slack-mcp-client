@@ -47,15 +47,15 @@ type SlackConfig struct {
 
 // LLMConfig contains LLM provider configuration
 type LLMConfig struct {
-	Provider                    string                       `json:"provider"`
-	UseNativeTools              bool                         `json:"useNativeTools,omitempty"`
-	UseAgent                    bool                         `json:"useAgent,omitempty"`
-	SuppressIntermediateSteps   bool                         `json:"suppressIntermediateSteps,omitempty"` // Suppress intermediate agent steps in Slack (default: false)
-	CustomPrompt                string                       `json:"customPrompt,omitempty"`
-	CustomPromptFile            string                       `json:"customPromptFile,omitempty"`
-	ReplaceToolPrompt           bool                         `json:"replaceToolPrompt,omitempty"`
-	MaxAgentIterations          int                          `json:"maxAgentIterations,omitempty"` // Maximum agent iterations (default: 20)
-	Providers                   map[string]LLMProviderConfig `json:"providers"`
+	Provider                  string                       `json:"provider"`
+	UseNativeTools            bool                         `json:"useNativeTools,omitempty"`
+	UseAgent                  bool                         `json:"useAgent,omitempty"`
+	SuppressIntermediateSteps bool                         `json:"suppressIntermediateSteps,omitempty"` // Suppress intermediate agent steps in Slack (default: false)
+	CustomPrompt              string                       `json:"customPrompt,omitempty"`
+	CustomPromptFile          string                       `json:"customPromptFile,omitempty"`
+	ReplaceToolPrompt         bool                         `json:"replaceToolPrompt,omitempty"`
+	MaxAgentIterations        int                          `json:"maxAgentIterations,omitempty"` // Maximum agent iterations (default: 20)
+	Providers                 map[string]LLMProviderConfig `json:"providers"`
 }
 
 // LLMProviderConfig contains provider-specific settings
