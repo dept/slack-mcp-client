@@ -47,7 +47,10 @@ func (t *ToolInfo) Call(ctx context.Context, input string) (string, error) {
 	res, err := t.Client.CallTool(ctx, t.Name(), args)
 	if err != nil {
 		isError = "true"
-		return "", fmt.Errorf("while calling tool %s: %w", t.Name(), err)
+		// Return the error as an observation string rather than a Go error so the
+		// LangChain agent can handle it gracefully and inform the user, instead of
+		// the executor terminating the agent and surfacing a raw error stack trace.
+		return fmt.Sprintf("Tool call failed: %v", err), nil
 	}
 
 	return res, nil
