@@ -34,7 +34,7 @@ func isIntermediateStep(text string) bool {
 func cleanIntermediateStep(text string) string {
 	var result []string
 	lines := strings.Split(strings.TrimSpace(text), "\n")
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		// Extract only the text after Justification:, skip Thought lines entirely
@@ -52,7 +52,7 @@ func cleanIntermediateStep(text string) string {
 			}
 		}
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 
@@ -81,11 +81,7 @@ func (handler *agentCallbackHandler) HandleChainEnd(_ context.Context, outputs m
 
 	if handler.suppressIntermediateSteps {
 		if isIntermediateStep(textStr) {
-			// Clean intermediate steps to keep Justification but remove Action/ActionInput
-			cleanedText := cleanIntermediateStep(textStr)
-			if cleanedText != "" {
-				handler.sendIntermediateMessage(cleanedText)
-			}
+			// Suppression means do not post intermediate agent reasoning to Slack.
 			return
 		}
 		textStr = extractFinalAnswer(textStr)
