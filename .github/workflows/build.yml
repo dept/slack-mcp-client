@@ -22,7 +22,7 @@ permissions:
   checks: write
 
 env:
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.25.9"
   REGISTRY: ghcr.io
 
 jobs:
@@ -174,4 +174,4 @@ jobs:
           cache: true
 
       - name: Build
-        run: go build -v ./... 
+        run: go build -v ./...
