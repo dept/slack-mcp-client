@@ -14,6 +14,7 @@ type agentCallbackHandler struct {
 	sendMessage               sendMessageFunc
 	sendIntermediateMessage   sendMessageFunc
 	suppressIntermediateSteps bool
+	lastSentText              string // dedup: prevents the outer executor chain from re-sending the same final answer
 }
 
 // isIntermediateStep returns true when the text looks like an agent reasoning step
@@ -86,6 +87,14 @@ func (handler *agentCallbackHandler) HandleChainEnd(_ context.Context, outputs m
 		}
 		textStr = extractFinalAnswer(textStr)
 	}
+
+	// LangChain fires HandleChainEnd for both the inner agent chain (full ReAct
+	// response including "AI: <answer>") and the outer executor chain (the
+	// already-extracted final answer). Skip if we would post identical content.
+	if strings.TrimSpace(textStr) == strings.TrimSpace(handler.lastSentText) {
+		return
+	}
+	handler.lastSentText = textStr
 
 	handler.sendMessage(textStr)
 }

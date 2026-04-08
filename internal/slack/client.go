@@ -635,6 +635,7 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 				sendMsg,
 				sendIntermediateMsg,
 				c.cfg.LLM.SuppressIntermediateSteps,
+				"",
 			})
 		duration := time.Since(startTime)
 
