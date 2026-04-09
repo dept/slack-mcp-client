@@ -272,8 +272,14 @@ func CreateBlockMessage(text string, blockOptions BlockOptions) string {
 
 // FormatMarkdown formats text using Slack's mrkdwn syntax
 func FormatMarkdown(text string) string {
-	// Convert quoted strings to code blocks for better visualization
-	text = ConvertQuotedStringsToCode(text)
+	// Only convert quoted strings to code blocks for content that does NOT already
+	// use Slack mrkdwn (*bold*, _italic_). mrkdwn content uses quotes as prose
+	// punctuation (e.g. description: "meeting with Chris") and converting those to
+	// backtick code-spans changes their meaning without adding value.
+	slackMrkdwn := regexp.MustCompile(`\*[^*\n]+\*|_[^_\n]+_`)
+	if !slackMrkdwn.MatchString(text) {
+		text = ConvertQuotedStringsToCode(text)
+	}
 
 	// Replace standard Markdown bold (**text**) with Slack bold (*text*)
 	boldPattern := regexp.MustCompile(`\*\*([^*]+)\*\*`)

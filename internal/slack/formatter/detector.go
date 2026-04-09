@@ -28,14 +28,17 @@ func DetectMessageType(content string) MessageType {
 		return JSONBlock
 	}
 
-	// Check if it contains structured data patterns
-	if containsStructuredData(content) {
-		return StructuredData
-	}
-
-	// Check if it contains markdown formatting
+	// Check for markdown BEFORE structured data: content that already contains
+	// Slack mrkdwn (*bold*, numbered lists with prose, etc.) must not be routed
+	// through ExtractStructuredData which treats numbered-list lines as key-value
+	// pairs and reassembles them in random map-iteration order.
 	if containsMarkdown(content) {
 		return MarkdownText
+	}
+
+	// Check if it contains structured data patterns (plain key:value pairs without markdown)
+	if containsStructuredData(content) {
+		return StructuredData
 	}
 
 	// Default to plain text
