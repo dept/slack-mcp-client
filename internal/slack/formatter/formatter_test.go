@@ -275,27 +275,28 @@ Result: Passed`,
 		})
 	}
 }
+
 // TestDetectMessageTypeSlackMrkdwn verifies that mrkdwn content with numbered lists
 // is classified as MarkdownText (not StructuredData). If classified as StructuredData
 // the content gets routed through ExtractStructuredData which uses key-value regex
 // on the entries and reassembles them in random map-iteration order.
 func TestDetectMessageTypeSlackMrkdwn(t *testing.T) {
-        mrkdwn := "*You have booked 3.00 hours on Wednesday, April 8, 2026:*\n" +
-                "1. 1.50h on Personalisatie sprints (Budget / Activity) \u2014 \"meeting with Chris\" [rebook-> budgetId:606706, activityId:557 | entry:123]\n" +
-                "2. 1.50h on New website PGGM (Budget / Activity) \u2014 \"Daily work\" [rebook-> budgetId:644094, activityId:2260 | entry:456]"
+	mrkdwn := "*You have booked 3.00 hours on Wednesday, April 8, 2026:*\n" +
+		"1. 1.50h on Personalisatie sprints (Budget / Activity) \u2014 \"meeting with Chris\" [rebook-> budgetId:606706, activityId:557 | entry:123]\n" +
+		"2. 1.50h on New website PGGM (Budget / Activity) \u2014 \"Daily work\" [rebook-> budgetId:644094, activityId:2260 | entry:456]"
 
-        got := DetectMessageType(mrkdwn)
-        if got != MarkdownText {
-                t.Errorf("DetectMessageType() = %v, want MarkdownText (%v); mrkdwn with numbered list must not be treated as StructuredData", got, MarkdownText)
-        }
+	got := DetectMessageType(mrkdwn)
+	if got != MarkdownText {
+		t.Errorf("DetectMessageType() = %v, want MarkdownText (%v); mrkdwn with numbered list must not be treated as StructuredData", got, MarkdownText)
+	}
 }
 
 // TestFormatMarkdownPreservesQuotesInMrkdwn verifies that description quotes inside
 // Slack mrkdwn content are NOT converted to backtick code-spans.
 func TestFormatMarkdownPreservesQuotesInMrkdwn(t *testing.T) {
-        input := "*You have booked 3.00 hours:*\n1. 1.50h on Project \u2014 \"meeting with Chris\""
-        result := FormatMarkdown(input)
-        if result != input {
-                t.Errorf("FormatMarkdown() modified mrkdwn content:\ngot:  %v\nwant: %v", result, input)
-        }
+	input := "*You have booked 3.00 hours:*\n1. 1.50h on Project \u2014 \"meeting with Chris\""
+	result := FormatMarkdown(input)
+	if result != input {
+		t.Errorf("FormatMarkdown() modified mrkdwn content:\ngot:  %v\nwant: %v", result, input)
+	}
 }
