@@ -635,7 +635,6 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 				sendMsg,
 				sendIntermediateMsg,
 				c.cfg.LLM.SuppressIntermediateSteps,
-				"",
 			})
 		duration := time.Since(startTime)
 
@@ -654,12 +653,15 @@ func (c *Client) handleUserPrompt(userPrompt, channelID, threadTS string, timest
 		// Set Output
 		c.tracingHandler.SetOutput(agentSpan, llmResponse)
 
-		// Send the final response back to Slack
+		// Send the final response back to Slack exactly once, using the
+		// clean answer returned by the executor (not via callbacks, which
+		// fire multiple times and cause duplicate messages).
 		if llmResponse == "" {
 			c.userFrontend.SendMessage(channelID, threadTS, "(LLM returned an empty response)")
 			c.tracingHandler.RecordError(agentSpan, fmt.Errorf("LLM returned an empty response"), "ERROR")
-
 		} else {
+			c.addToHistory(channelID, threadTS, "", "assistant", llmResponse, "", "", "")
+			c.userFrontend.SendMessage(channelID, threadTS, llmResponse)
 			c.tracingHandler.RecordSuccess(agentSpan, "LLM agent call succeeded")
 		}
 		agentSpan.End()
