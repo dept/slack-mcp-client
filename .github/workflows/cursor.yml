@@ -29,17 +29,39 @@ jobs:
           persist-credentials: false  # Security: don't persist creds when checking out PR code
 
       - name: Install Cursor CLI
+        shell: bash
         run: |
-          curl https://cursor.com/install -fsS | bash
-          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+          set -euo pipefail
+          curl -fsSL https://cursor.com/install -o /tmp/cursor-install.sh
+          bash /tmp/cursor-install.sh
+
+          for dir in \
+            "$HOME/.cursor/bin" \
+            "$HOME/.local/bin" \
+            "$HOME/bin"
+          do
+            if [ -d "$dir" ]; then
+              echo "$dir" >> "$GITHUB_PATH"
+            fi
+          done
 
       - name: Verify Cursor CLI installation
+        shell: bash
         run: |
-          if ! command -v cursor-agent &> /dev/null; then
-            echo "::error::cursor-agent not found after installation"
+          set -euo pipefail
+
+          if command -v cursor-agent >/dev/null 2>&1; then
+            cursor-agent --version
+          elif command -v cursor >/dev/null 2>&1; then
+            cursor --version
+          else
+            echo "::error::Cursor CLI was not found after installation"
+            echo "Contents of likely install locations:"
+            ls -la "$HOME/.cursor/bin" 2>/dev/null || true
+            ls -la "$HOME/.local/bin" 2>/dev/null || true
+            ls -la "$HOME/bin" 2>/dev/null || true
             exit 1
           fi
-          cursor-agent --version || true
 
       - name: Configure git identity
         run: |
@@ -52,7 +74,19 @@ jobs:
           MODEL: gpt-5.1-codex
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BLOCKING_REVIEW: ${{ vars.BLOCKING_REVIEW || 'false' }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if command -v cursor-agent >/dev/null 2>&1; then
+            CURSOR_CMD=cursor-agent
+          elif command -v cursor >/dev/null 2>&1; then
+            CURSOR_CMD=cursor
+          else
+            echo "::error::Cursor CLI not found"
+            exit 1
+          fi
+
           PROMPT=$(cat <<'EOF'
           You are operating in a GitHub Actions runner performing automated code review. The gh CLI is available and authenticated via GH_TOKEN. You may comment on pull requests.
 
@@ -72,7 +106,7 @@ jobs:
           Procedure:
           - Get existing comments: gh pr view --json comments
           - Get diff: gh pr diff
-          - Get changed files with patches to compute inline positions: gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --paginate --jq '.[] | {filename,patch}'
+          - Get changed files with patches to compute inline positions: gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files --paginate --jq '.[] | {filename,patch,sha,status,additions,deletions,changes}'
           - IMPORTANT: When reviewing files that specify versions (go.mod, package.json, requirements.txt, Dockerfile, GitHub Actions workflows, etc.), MUST search the web for:
             - Latest stable versions of languages (Go, Node.js, Python, etc.)
             - Latest versions of libraries/dependencies
@@ -108,7 +142,7 @@ jobs:
           - Use emojis: 🚨 Critical 🔒 Security ⚡ Performance ⚠️ Logic 📦 Outdated Version 🔄 Deprecated ✅ Resolved ✨ Improvement
 
           Submission:
-          - If there are NO issues to report and an existing top-level comment indicating "no issues" already exists (e.g., "✅ no issues", "No issues found", "LGTM"), do NOT submit another comment. Skip submission to avoid redundancy.
+          - If there are NO issues to report and an existing top-level comment indicating "no issues" already exists (e.g., "✅ no issues", "No issues found", "LGTM"), do NOT submit another comment.
           - If there are NO issues to report and NO prior "no issues" comment exists, submit one brief summary comment noting no issues.
           - If there ARE issues to report and a prior "no issues" comment exists, ensure that prior comment is deleted/minimized/marked as superseded before submitting the new review.
           - If there ARE issues to report, submit ONE review containing ONLY inline comments plus an optional concise summary body. Use the GitHub Reviews API to ensure comments are inline:
@@ -123,7 +157,7 @@ jobs:
           EOF
           )
 
-          OUTPUT=$(cursor-agent --force --model "$MODEL" --output-format=text --print "$PROMPT" 2>&1)
+          OUTPUT=$($CURSOR_CMD --force --model "$MODEL" --output-format=text --print "$PROMPT" 2>&1)
           echo "$OUTPUT"
 
           if echo "$OUTPUT" | grep -q "CRITICAL_ISSUES_FOUND=true"; then
